@@ -61,6 +61,15 @@ namespace PMWebService.Controllers
                 return BadRequest();
             }
 
+            IEnumerable<string> headerValues;
+            string nameFilter = string.Empty;
+            if (Request.Headers.TryGetValues("username", out headerValues))
+            {
+                nameFilter = headerValues.FirstOrDefault();
+            }
+
+            taxYear = RecalculateBilling(taxYear, nameFilter);
+
             db.Entry(taxYear).State = EntityState.Modified;
 
             try
@@ -111,6 +120,53 @@ namespace PMWebService.Controllers
             await db.SaveChangesAsync();
 
             return Ok(taxYear);
+        }
+
+        private TaxYear RecalculateBilling(TaxYear taxYear, string username)
+        {
+            taxYear.TotalTax = 0;
+            taxYear.TotalExpenses = 0;
+            taxYear.TotalGrossIncome = 0;
+            taxYear.TotalMiles = 0;
+
+            var bills = from b in db.Billing
+                        where b.Username == username
+                        select b;
+
+            foreach (Billing billing in bills)
+            {
+                if (billing.TaxYearID == taxYear.TaxYearID)
+                {
+                    if (billing.BillingType == "Payment")
+                    {
+                        billing.SalesTax = billing.GetSalesTax(billing, taxYear);
+                        billing.Subtotal = billing.Total - billing.SalesTax;
+
+                        taxYear.TotalTax += billing.SalesTax;
+                        taxYear.TotalGrossIncome += billing.Total;
+                    }
+                    else if (billing.BillingType == "Expense")
+                    {
+                        taxYear.TotalExpenses += billing.Total;
+                    }
+                }
+            }
+
+            var mileages = from m in db.Mileage
+                        where m.Username == username
+                        select m;
+
+            foreach (Mileage mileage in mileages)
+            {
+                if (mileage.TaxYearID == taxYear.TaxYearID)
+                {
+                    taxYear.TotalMiles += mileage.MilesDriven;
+                }
+            }
+
+            taxYear.TotalNetIncome = taxYear.TotalGrossIncome - taxYear.TotalTax - taxYear.TotalExpenses;
+
+            return taxYear;
         }
 
         protected override void Dispose(bool disposing)

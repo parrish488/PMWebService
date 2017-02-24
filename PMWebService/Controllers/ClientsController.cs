@@ -27,6 +27,8 @@ namespace PMWebService.Controllers
                 nameFilter = headerValues.FirstOrDefault();
             }
 
+            HomeController.VerifyActiveStatus(db, nameFilter);
+
             var clients = from c in db.Clients
                         where c.Username == nameFilter
                         select c;
@@ -62,6 +64,15 @@ namespace PMWebService.Controllers
             }
 
             db.Entry(client).State = EntityState.Modified;
+
+            IEnumerable<string> headerValues;
+            string nameFilter = string.Empty;
+            if (Request.Headers.TryGetValues("username", out headerValues))
+            {
+                nameFilter = headerValues.FirstOrDefault();
+            }
+
+            HomeController.VerifyActiveStatus(db, nameFilter);
 
             try
             {
@@ -107,8 +118,18 @@ namespace PMWebService.Controllers
                 return NotFound();
             }
 
+            IEnumerable<string> headerValues;
+            string nameFilter = string.Empty;
+            if (Request.Headers.TryGetValues("username", out headerValues))
+            {
+                nameFilter = headerValues.FirstOrDefault();
+            }
+
             db.Clients.Remove(client);
+
             await db.SaveChangesAsync();
+
+            HomeController.VerifyActiveStatus(db, nameFilter);
 
             return Ok(client);
         }
