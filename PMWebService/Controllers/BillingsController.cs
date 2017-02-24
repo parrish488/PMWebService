@@ -34,6 +34,24 @@ namespace PMWebService.Controllers
             return bills;
         }
 
+        // GET: api/Billings/Years
+        [Route("api/Billings/Years")]
+        public List<int> GetBillingYears()
+        {
+            IEnumerable<string> headerValues;
+            string nameFilter = string.Empty;
+            if (Request.Headers.TryGetValues("username", out headerValues))
+            {
+                nameFilter = headerValues.FirstOrDefault();
+            }
+
+            var billingYears = (from b in db.Billing
+                        where b.Username == nameFilter
+                        select b.BillingDate.Year).Distinct();
+
+            return billingYears.OrderByDescending(b => b).ToList();
+        }
+
         // GET: api/Billings/5
         [ResponseType(typeof(Billing))]
         public async Task<IHttpActionResult> GetBilling(int id)
@@ -63,6 +81,51 @@ namespace PMWebService.Controllers
 
             db.Entry(billing).State = EntityState.Modified;
 
+            IEnumerable<string> headerValues;
+            string nameFilter = string.Empty;
+            if (Request.Headers.TryGetValues("username", out headerValues))
+            {
+                nameFilter = headerValues.FirstOrDefault();
+            }
+
+            TaxYear taxYear = db.TaxYears.Find(billing.TaxYearID);
+
+            // Calculate sales tax for payment
+            if (billing.BillingType == "Payment")
+            {
+                decimal salesTax = billing.GetSalesTax(billing, taxYear);
+                billing.Subtotal = billing.Total - salesTax;
+                billing.SalesTax = salesTax;
+            }
+
+            taxYear.TotalTax = 0;
+            taxYear.TotalExpenses = 0;
+            taxYear.TotalGrossIncome = 0;
+
+            var bills = from b in db.Billing
+                        where b.Username == nameFilter
+                        select b;
+
+            foreach (Billing bill in bills)
+            {
+                if (bill.TaxYearID == billing.TaxYearID)
+                {
+                    if (bill.BillingType == "Payment")
+                    {
+                        taxYear.TotalTax += bill.SalesTax;
+                        taxYear.TotalGrossIncome += bill.Subtotal;
+                    }
+                    else if (bill.BillingType == "Expense")
+                    {
+                        taxYear.TotalExpenses += bill.Total;
+                    }
+                }
+            }
+
+            taxYear.TotalNetIncome = taxYear.TotalGrossIncome - taxYear.TotalExpenses;
+
+            db.Entry(taxYear).State = EntityState.Modified;
+
             try
             {
                 await db.SaveChangesAsync();
@@ -91,6 +154,37 @@ namespace PMWebService.Controllers
                 return BadRequest(ModelState);
             }
 
+            IEnumerable<string> headerValues;
+            string nameFilter = string.Empty;
+            if (Request.Headers.TryGetValues("username", out headerValues))
+            {
+                nameFilter = headerValues.FirstOrDefault();
+            }
+
+            TaxYear taxYear = db.TaxYears.Find(billing.TaxYearID);
+
+            // Calculate sales tax for payment
+            if (billing.BillingType == "Payment")
+            {
+                decimal salesTax = billing.GetSalesTax(billing, taxYear);
+                billing.Subtotal = billing.Total - salesTax;
+                billing.SalesTax = salesTax;
+            }
+
+            if (billing.BillingType == "Payment")
+            {
+                taxYear.TotalTax += billing.SalesTax;
+                taxYear.TotalGrossIncome += billing.Subtotal;
+            }
+            else if (billing.BillingType == "Expense")
+            {
+                taxYear.TotalExpenses += billing.Total;
+            }
+
+            taxYear.TotalNetIncome = taxYear.TotalGrossIncome - taxYear.TotalExpenses;
+
+            db.Entry(taxYear).State = EntityState.Modified;
+
             db.Billing.Add(billing);
             await db.SaveChangesAsync();
 
@@ -101,6 +195,13 @@ namespace PMWebService.Controllers
         [ResponseType(typeof(Billing))]
         public async Task<IHttpActionResult> DeleteBilling(int id)
         {
+            IEnumerable<string> headerValues;
+            string nameFilter = string.Empty;
+            if (Request.Headers.TryGetValues("username", out headerValues))
+            {
+                nameFilter = headerValues.FirstOrDefault();
+            }
+
             Billing billing = await db.Billing.FindAsync(id);
             if (billing == null)
             {
@@ -108,6 +209,36 @@ namespace PMWebService.Controllers
             }
 
             db.Billing.Remove(billing);
+
+            TaxYear taxYear = db.TaxYears.Find(billing.TaxYearID);
+            taxYear.TotalTax = 0;
+            taxYear.TotalExpenses = 0;
+            taxYear.TotalGrossIncome = 0;
+
+            var bills = from b in db.Billing
+                        where b.Username == nameFilter
+                        select b;
+
+            foreach (Billing bill in bills)
+            {
+                if (bill.TaxYearID == billing.TaxYearID)
+                {
+                    if (bill.BillingType == "Payment")
+                    {
+                        taxYear.TotalTax += bill.SalesTax;
+                        taxYear.TotalGrossIncome += bill.Subtotal;
+                    }
+                    else if (bill.BillingType == "Expense")
+                    {
+                        taxYear.TotalExpenses += bill.Total;
+                    }
+                }
+            }
+
+            taxYear.TotalNetIncome = taxYear.TotalGrossIncome - taxYear.TotalExpenses;
+
+            db.Entry(taxYear).State = EntityState.Modified;
+
             await db.SaveChangesAsync();
 
             return Ok(billing);
