@@ -31,6 +31,7 @@ namespace PMWebService.Controllers
 
             var clients = from c in db.Clients
                         where c.Username == nameFilter
+                        orderby c.LastName ascending
                         select c;
 
             return clients;
