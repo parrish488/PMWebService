@@ -16,6 +16,7 @@ using Microsoft.Owin.Security.OAuth;
 using PMWebService.Models;
 using PMWebService.Providers;
 using PMWebService.Results;
+using Newtonsoft.Json;
 
 namespace PMWebService.Controllers
 {
@@ -328,13 +329,13 @@ namespace PMWebService.Controllers
                 return BadRequest(ModelState);
             }
 
-            var user = new ApplicationUser() { UserName = model.Email, Email = model.Email };
+            var user = new ApplicationUser() { UserName = model.Username, Email = model.Username };
 
             IdentityResult result = await UserManager.CreateAsync(user, model.Password);
 
             if (!result.Succeeded)
             {
-                return GetErrorResult(result);
+                return BadRequest(JsonConvert.SerializeObject(result));
             }
 
             return Ok();

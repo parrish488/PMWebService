@@ -21,7 +21,7 @@ namespace PMWebService.Models
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         public ApplicationDbContext()
-            : base("DefaultConnection", throwIfV1Schema: false)
+            : base("PhotographerContext", throwIfV1Schema: false)
         {
         }
         
